@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Slack Stats</title>
+    <style type="text/css">
+        canvas {
+            border: 1px solid #666;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <script type="text/javascript">
+        const STATS = [ { name: 'sam',
+            messageCount: 14698,
+            averageMessageLength: 40.24,
+            greetingCount: 327,
+            averageWordsPerMessage: 7.72,
+            medianWordsPerMessage: 7,
+            blockCount: 6855,
+            averageBlockSize: 5.98,
+            medianBlockSize: 4 },
+          { name: 'jessiewright',
+            messageCount: 3572,
+            averageMessageLength: 42.64,
+            greetingCount: 33,
+            averageWordsPerMessage: 8.01,
+            medianWordsPerMessage: 6,
+            blockCount: 779,
+            averageBlockSize: 4.32,
+            medianBlockSize: 4 },
+          { name: 'xuan',
+            messageCount: 3932,
+            averageMessageLength: 53.1,
+            greetingCount: 1,
+            averageWordsPerMessage: 9.45,
+            medianWordsPerMessage: 4,
+            blockCount: 947,
+            averageBlockSize: 3.88,
+            medianBlockSize: 3 },
+          { name: 'dashalom',
+            messageCount: 305,
+            averageMessageLength: 39.08,
+            greetingCount: 1,
+            averageWordsPerMessage: 7.71,
+            medianWordsPerMessage: 5,
+            blockCount: 91,
+            averageBlockSize: 3.95,
+            medianBlockSize: 4 },
+          { name: 'stefan',
+            messageCount: 18545,
+            averageMessageLength: 44.4,
+            greetingCount: 250,
+            averageWordsPerMessage: 8.39,
+            medianWordsPerMessage: 6,
+            blockCount: 4602,
+            averageBlockSize: 4.18,
+            medianBlockSize: 4 } ]
+    </script>
+
+    <script type="text/javascript">
+
+        const COLORS = ['crimson', 'green', 'blue', '#d60', 'purple'];
+
+        const init = () => {
+            renderChart('messageCount');
+            renderChart('averageMessageLength');
+            renderChart('greetingCount');
+            renderChart('averageWordsPerMessage');
+            renderChart('medianWordsPerMessage');
+            renderChart('blockCount');
+            renderChart('averageBlockSize');
+            renderChart('medianBlockSize');
+        };
+
+        const renderChart = (prop) => {
+            const canvas = document.createElement('canvas');
+            document.body.appendChild(canvas);
+            canvas.width = 800;
+            canvas.height = 400;
+            const ctx = canvas.getContext('2d');
+
+            const axisMargin = 20;
+            const axisSize = 2;
+            const barMargin = 20;
+            const barMinHeight = 20;
+            const fontSize = 12;
+
+            const {list, lowerBound, upperBound} = getData(prop);
+            const width = canvas.width - axisMargin * 2 - axisSize * 2;
+            const height = canvas.height - axisMargin * 2 - axisSize * 2;
+            const barWidth = (width - barMargin * 2 * list.length) / list.length;
+
+            list.sort((a, b) => a.item.name.localeCompare(b.item.name));
+
+            // Render bars
+            for (let index = 0; index < list.length; ++index) {
+                const {value, item: {name}} = list[index];
+                ctx.fillStyle = COLORS[index % COLORS.length];
+                const rectH = translate(value, lowerBound, upperBound, 20, height);
+                const rectW = barWidth;
+                const rectX = axisMargin + axisSize + index * (barMargin * 2 + barWidth) + barMargin;
+                const rectY = canvas.height - axisMargin - axisSize - rectH;
+                ctx.fillRect(rectX, rectY, rectW, rectH);
+
+                // Render Labels
+                const renderLabel = (label, yPos) => {
+                    const labelWidth = ctx.measureText(label).width;
+                    ctx.fillText(label, rectX + (rectW - labelWidth) / 2, yPos);
+                };
+
+                ctx.font = `${fontSize}px tahoma`;
+                ctx.fillStyle = 'black';
+                renderLabel(name, rectY + rectH + fontSize + axisSize);
+                ctx.fillStyle = 'white';
+                renderLabel('' + value, rectY + fontSize + 3);
+            }
+
+            // Render Axis
+            ctx.strokeStyle = 'black';
+            ctx.strokeWidth = axisSize;
+            ctx.moveTo(axisMargin, canvas.height - axisMargin + 0.5);
+            ctx.lineTo(canvas.width - axisMargin, canvas.height - axisMargin + 0.5);
+            ctx.stroke();
+
+            // Render chart title
+            ctx.font = '20px tahoma bold';
+            ctx.fillStyle = 'black';
+            ctx.fillText(prop, axisMargin, axisMargin + 5);
+        };
+
+        const translate = (val, fromStart, fromEnd, toStart, toEnd) =>
+            toStart + (val - fromStart) / (fromEnd - fromStart) * (toEnd - toStart);
+
+        const getData = prop => {
+            const list = STATS.map(obj => ({
+                value: obj[prop],
+                item: obj,
+            })).sort((a, b) => a.value - b.value);
+            const min = list[0].value;
+            const max = list[list.length - 1].value;
+            // const lowerBound = getBound(min, -1);
+            const lowerBound = min;
+            const upperBound = getBound(max, +1);
+            return {
+                min,
+                max,
+                lowerBound,
+                upperBound,
+                list,
+            };
+        }
+
+        const getBound = (num, delta) => {
+            if (num <= 10) return delta < 0 ? 0 : 10;
+            if (num <= 100) return delta < 0 ? 0 : 100;
+            const str = num.toString();
+            const digit = parseInt(str[0], 10) + delta;
+            return parseInt(digit + '0'.repeat(str.length - 1), 10);
+        }
+
+        init();
+    </script>
+</body>
+</html>

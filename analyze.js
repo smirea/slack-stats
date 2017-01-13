@@ -29,8 +29,8 @@ const init = () => {
         Object.values(data.channels),
     ]);
 
-    // console.log(analyze(allChannels, {userWhitelist: DEFAUL_USERS}));
-    console.log(analyze([data.direct_messages.xuan], {userWhitelist: DEFAUL_USERS}));
+    console.log(analyze(allChannels, {userWhitelist: DEFAUL_USERS}));
+    // console.log(analyze([data.direct_messages.sam], {userWhitelist: DEFAUL_USERS}));
 };
 
 const analyze = (channelList, options) => {
@@ -52,7 +52,7 @@ const analyze = (channelList, options) => {
 
     computeStats(userMap);
 
-    return userMap;
+    return Object.values(userMap);
 };
 
 const computeStats = (userMap) => {
