@@ -9,11 +9,11 @@ const metadata = require('./archive/metadata.json');
 const DIR = 'archive';
 
 const DEFAUL_USERS = [
-    'U0B3JPJ0G', // sam
-    'U0B49717H', // jessiewright
-    'U0B3WUEP6', // xuan
-    'U35A7SYJW', // dashalom
-    'U0B3HRP2A', // stefan
+    'sam',
+    'jessiewright',
+    'xuan',
+    'dashalom',
+    'stefan',
 ];
 
 const SPACE_REG = /\s+/;
@@ -22,28 +22,24 @@ const GREETING_REG = /^(hello|hi|holla|howdy|sup|yo)[^a-z]*$/i;
 const MIN_BLOCK_SIZE = 3;
 const BLOCK_DELTA = 10 * 1000;
 
+const USER_ID_MAP = {};
+for (let id in metadata.users) USER_ID_MAP[metadata.users[id]] = id;
+
 const init = () => {
-    const data = readData();
-
-    const allChannels = [].concat.apply([], [
-        Object.values(data.private_channels),
-        Object.values(data.direct_messages),
-        Object.values(data.channels),
-    ]);
-
-    console.log(analyze(allChannels, {userWhitelist: DEFAUL_USERS}));
-    // console.log(analyze([data.direct_messages.sam], {userWhitelist: DEFAUL_USERS}));
+    console.log(analyze(allChannels));
+    // console.log(analyze([data.direct_messages.sam]));
 };
 
 const analyze = (channelList, options) => {
     options = Object.assign({
-        userWhitelist: Object.keys(metadata.users),
+        userWhitelist: DEFAUL_USERS,
     }, options);
 
     const userMap = {};
-    for (let id of options.userWhitelist) {
+    for (let name of options.userWhitelist) {
+        const id = USER_ID_MAP[name];
         userMap[id] = {
-            name: metadata.users[id],
+            name,
             messages: [],
             words: [],
             blocks: [],
@@ -174,4 +170,21 @@ const readData = () => {
     return result;
 };
 
-init();
+const data = readData();
+
+const allChannels = [].concat.apply([], [
+    Object.values(data.private_channels),
+    Object.values(data.direct_messages),
+    Object.values(data.channels),
+]);
+
+module.exports = {
+    analyze,
+
+    DEFAUL_USERS,
+    USER_ID_MAP,
+    allChannels,
+    data,
+};
+
+if (!module.parent) init();
