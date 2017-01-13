@@ -8,13 +8,13 @@ const metadata = require('./archive/metadata.json');
 
 const DIR = 'archive';
 
-const USERS = {
-    'U0B3JPJ0G': 'sam',
-    'U0B49717H': 'jessiewright',
-    'U0B3WUEP6': 'xuan',
-    'U35A7SYJW': 'dashalom',
-    'U0B3HRP2A': 'stefan',
-};
+const DEFAUL_USERS = [
+    'U0B3JPJ0G', // sam
+    'U0B49717H', // jessiewright
+    'U0B3WUEP6', // xuan
+    'U35A7SYJW', // dashalom
+    'U0B3HRP2A', // stefan
+];
 
 const SPACE_REG = /\s+/;
 const TAG_REG = /<[^>]*>/g;
@@ -22,42 +22,40 @@ const GREETING_REG = /^(hello|hi|holla|howdy|sup|yo)[^a-z]*$/i;
 
 const init = () => {
     const data = readData();
-    analyze(data.private_channels.core);
+
+    const allChannels = [].concat.apply([], [
+        Object.values(data.private_channels),
+        Object.values(data.direct_messages),
+        Object.values(data.channels),
+    ]);
+
+    // console.log(analyze(allChannels, {userWhitelist: DEFAUL_USERS}));
+    console.log(analyze([data.direct_messages.xuan], {userWhitelist: DEFAUL_USERS}));
 };
 
-const analyze = ({channel_info: {members}, messages}) => {
+const analyze = (channelList, options) => {
+    options = Object.assign({
+        userWhitelist: Object.keys(metadata.users),
+    }, options);
+
     const userMap = {};
-    for (let id in USERS) {
+    for (let id of options.userWhitelist) {
         userMap[id] = {
-            name: USERS[id],
+            name: metadata.users[id],
             messages: [],
             words: [],
             blocks: [],
         };
     }
 
-    for (let msg of messages) {
-        const obj = userMap[msg.user];
-        if (!obj) continue;
-        obj.messages.push(msg);
-        obj.words.push(...msg.words);
-    }
+    for (let channel of channelList) gatherData(userMap, channel);
 
-    const BLOCK_DELTA = 10 * 1000;
-    for (let index = 0; index < messages.length; ++index) {
-        const msg = messages[index];
-        if (!userMap[msg.user]) continue;
-        const block = [msg];
-        for (let nextIndex = index + 1; nextIndex < messages.length; ++nextIndex) {
-            const nextMsg = messages[nextIndex];
-            if (nextMsg.user !== msg.user) break;
-            if (nextMsg.time - msg.time >= BLOCK_DELTA) break;
-            block.push(nextMsg);
-        }
-        if (block.length <= 2) continue;
-        userMap[msg.user].blocks.push(block);
-    }
+    computeStats(userMap);
 
+    return userMap;
+};
+
+const computeStats = (userMap) => {
     const formatNum = num => Math.round(num * 100) / 100;
     const getMedian = arr => !arr.length ? null : arr[Math.round(arr.length / 2)];
     for (let user in userMap) {
@@ -88,8 +86,36 @@ const analyze = ({channel_info: {members}, messages}) => {
         delete obj.words;
         delete obj.blocks;
     }
+    for (let user in userMap) {
+        if (userMap[user].messageCount) continue;
+        delete userMap[user];
+    }
+};
 
-    console.log(userMap)
+const gatherData = (userMap, {channel_info: {members}, messages}) => {
+    if (!members.some(id => !!userMap[id])) return;
+
+    for (let msg of messages) {
+        const obj = userMap[msg.user];
+        if (!obj) continue;
+        obj.messages.push(msg);
+        obj.words.push(...msg.words);
+    }
+
+    const BLOCK_DELTA = 10 * 1000;
+    for (let index = 0; index < messages.length; ++index) {
+        const msg = messages[index];
+        if (!userMap[msg.user]) continue;
+        const block = [msg];
+        for (let nextIndex = index + 1; nextIndex < messages.length; ++nextIndex) {
+            const nextMsg = messages[nextIndex];
+            if (nextMsg.user !== msg.user) break;
+            if (nextMsg.time - msg.time >= BLOCK_DELTA) break;
+            block.push(nextMsg);
+        }
+        if (block.length <= 2) continue;
+        userMap[msg.user].blocks.push(block);
+    }
 };
 
 const readData = () => {
