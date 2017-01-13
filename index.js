@@ -8,16 +8,13 @@ const metadata = require('./archive/metadata.json');
 
 const DIR = 'archive';
 
-const USERS_TO_CHECK = [
-    'dalit',
-    'jessiewright',
-    'sam',
-    'stefan',
-    'xuan',
-];
-const USERS = Object.keys(metadata.users).reduce((obj, key) =>
-    Object.assign(obj, {[key]: metadata.users[key]})
-, {});
+const USERS = {
+    'U0B3JPJ0G': 'sam',
+    'U0B49717H': 'jessiewright',
+    'U0B3WUEP6': 'xuan',
+    'U35A7SYJW': 'dashalom',
+    'U0B3HRP2A': 'stefan',
+};
 
 const SPACE_REG = /\s+/;
 const TAG_REG = /<[^>]*>/g;
@@ -25,16 +22,17 @@ const GREETING_REG = /^(hello|hi|holla|howdy|sup|yo)[^a-z]*$/i;
 
 const init = () => {
     const data = readData();
-    console.log(analyze(data.direct_messages.sam));
+    analyze(data.private_channels.core);
 };
 
 const analyze = ({channel_info: {members}, messages}) => {
     const userMap = {};
-    for (let id of members) {
+    for (let id in USERS) {
         userMap[id] = {
             name: USERS[id],
             messages: [],
             words: [],
+            blocks: [],
         };
     }
 
@@ -45,26 +43,50 @@ const analyze = ({channel_info: {members}, messages}) => {
         obj.words.push(...msg.words);
     }
 
+    const BLOCK_DELTA = 10 * 1000;
+    for (let index = 0; index < messages.length; ++index) {
+        const msg = messages[index];
+        if (!userMap[msg.user]) continue;
+        const block = [msg];
+        for (let nextIndex = index + 1; nextIndex < messages.length; ++nextIndex) {
+            const nextMsg = messages[nextIndex];
+            if (nextMsg.user !== msg.user) break;
+            if (nextMsg.time - msg.time >= BLOCK_DELTA) break;
+            block.push(nextMsg);
+        }
+        if (block.length <= 2) continue;
+        userMap[msg.user].blocks.push(block);
+    }
+
     const formatNum = num => Math.round(num * 100) / 100;
+    const getMedian = arr => !arr.length ? null : arr[Math.round(arr.length / 2)];
     for (let user in userMap) {
         const obj = userMap[user];
         const {messages, words} = obj;
-        const count = messages.length;
 
+        obj.messageCount = messages.length;
         obj.averageMessageLength = 0;
         obj.greetingCount = 0;
         for (let msg of messages) {
             obj.averageMessageLength += msg.text.length;
             if (msg.isGreeting) ++obj.greetingCount;
         }
-        obj.averageMessageLength = formatNum(obj.averageMessageLength / count);
-
-        obj.averageWordsPerMessage = formatNum(words.length / count);
+        obj.averageMessageLength = formatNum(obj.averageMessageLength / obj.messageCount);
+        obj.averageWordsPerMessage = formatNum(words.length / obj.messageCount);
 
         const sortedMessages = Array.from(messages).sort((a, b) => b.text.length - a.text.length);
-        obj.medianWordsPerMessage = sortedMessages[Math.round(sortedMessages.length / 2)].words.length;
+        obj.medianWordsPerMessage = getMedian(sortedMessages) && getMedian(sortedMessages).words.length || 0;
+
+        obj.blocks.sort((a, b) => b.length - a.length);
+        obj.blockCount = obj.blocks.length;
+        obj.averageBlockSize = formatNum(
+            obj.blocks.reduce((sum, block) => sum + block.length, 0) / obj.blockCount
+        );
+        obj.medianBlockSize = getMedian(obj.blocks) && getMedian(obj.blocks).length || 0;
+
         delete obj.messages;
         delete obj.words;
+        delete obj.blocks;
     }
 
     console.log(userMap)
@@ -95,6 +117,7 @@ const readData = () => {
 
                 finalMessages.push(obj);
             }
+            finalMessages.reverse(); // by default the messages are sorted new -> old, reverse that
             data.messages = finalMessages;
             result[key][path.basename(file, '.json')] = data;
         }
