@@ -3,14 +3,25 @@ const fs = require('fs');
 const path = require('path');
 const moment = require('moment');
 
+const {unique} = require('./utils');
+const metadata = require('./archive/metadata.json');
+
 const DIR = 'archive';
 
-const USERS = {
-    'U0B3HRP2A': 'Jessie',
-    'U0B3JPJ0G': 'Sam',
-    'U0B3HRP2A': 'Stefan',
-    'U0B3WUEP6': 'Xuan',
-};
+const USERS_TO_CHECK = [
+    'dalit',
+    'jessiewright',
+    'sam',
+    'stefan',
+    'xuan',
+];
+const USERS = Object.keys(metadata.users).reduce((obj, key) =>
+    Object.assign(obj, {[key]: metadata.users[key]})
+, {});
+
+const SPACE_REG = /\s+/;
+const TAG_REG = /<[^>]*>/g;
+const GREETING_REG = /^(hello|hi|holla|howdy|sup|yo)[^a-z]*$/i;
 
 const init = () => {
     const data = readData();
@@ -39,9 +50,15 @@ const analyze = ({channel_info: {members}, messages}) => {
         const obj = userMap[user];
         const {messages, words} = obj;
         const count = messages.length;
-        obj.averageMessageLength = formatNum(
-            messages.reduce((sum, msg) => sum + msg.text.length, 0) / count
-        );
+
+        obj.averageMessageLength = 0;
+        obj.greetingCount = 0;
+        for (let msg of messages) {
+            obj.averageMessageLength += msg.text.length;
+            if (msg.isGreeting) ++obj.greetingCount;
+        }
+        obj.averageMessageLength = formatNum(obj.averageMessageLength / count);
+
         obj.averageWordsPerMessage = formatNum(words.length / count);
 
         const sortedMessages = Array.from(messages).sort((a, b) => b.text.length - a.text.length);
@@ -55,8 +72,6 @@ const analyze = ({channel_info: {members}, messages}) => {
 
 const readData = () => {
     const result = {};
-    const SPACE_REG = /\s+/;
-    const TAG_REG = /<[^>]*>/g;
     for (let key of ['channels', 'direct_messages', 'private_channels']) {
         result[key] = {};
         const root = path.join(DIR, key);
@@ -69,11 +84,14 @@ const readData = () => {
                 // Completely exclude text blocks
                 if (!obj.text || obj.text.includes('```')) continue;
 
-                obj.text = obj.text.replace(TAG_REG, '');
+                obj.text = obj.text.replace(TAG_REG, '').trim();
+                if (!obj.text) continue;
+
                 obj.words = obj.text.split(SPACE_REG);
                 const [time, count] = obj.ts.split('.')[0];
                 obj.time = parseInt(time) * 1000;
                 obj.datIndex = parseInt(count) - 1;
+                obj.isGreeting = GREETING_REG.test(obj.text);
 
                 finalMessages.push(obj);
             }
