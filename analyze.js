@@ -19,6 +19,8 @@ const DEFAUL_USERS = [
 const SPACE_REG = /\s+/;
 const TAG_REG = /<[^>]*>/g;
 const GREETING_REG = /^(hello|hi|holla|howdy|sup|yo)[^a-z]*$/i;
+const MIN_BLOCK_SIZE = 3;
+const BLOCK_DELTA = 10 * 1000;
 
 const init = () => {
     const data = readData();
@@ -65,9 +67,11 @@ const computeStats = (userMap) => {
         obj.messageCount = messages.length;
         obj.averageMessageLength = 0;
         obj.greetingCount = 0;
+        obj.firstGreetingCount = 0;
         for (let msg of messages) {
             obj.averageMessageLength += msg.text.length;
             if (msg.isGreeting) ++obj.greetingCount;
+            if (msg.isFirstGreeting) ++obj.firstGreetingCount;
         }
         obj.averageMessageLength = formatNum(obj.averageMessageLength / obj.messageCount);
         obj.averageWordsPerMessage = formatNum(words.length / obj.messageCount);
@@ -102,7 +106,6 @@ const gatherData = (userMap, {channel_info: {members}, messages}) => {
         obj.words.push(...msg.words);
     }
 
-    const BLOCK_DELTA = 10 * 1000;
     for (let index = 0; index < messages.length; ++index) {
         const msg = messages[index];
         if (!userMap[msg.user]) continue;
@@ -113,13 +116,16 @@ const gatherData = (userMap, {channel_info: {members}, messages}) => {
             if (nextMsg.time - msg.time >= BLOCK_DELTA) break;
             block.push(nextMsg);
         }
-        if (block.length <= 2) continue;
+        if (block.length < MIN_BLOCK_SIZE) continue;
         userMap[msg.user].blocks.push(block);
     }
 };
 
 const readData = () => {
     const result = {};
+    let dayID = 0;
+    let lastDayIndex = Infinity;
+
     for (let key of ['channels', 'direct_messages', 'private_channels']) {
         result[key] = {};
         const root = path.join(DIR, key);
@@ -127,27 +133,44 @@ const readData = () => {
             if (path.extname(file) !== '.json') continue;
             const data = JSON.parse('' + fs.readFileSync(path.join(root, file)));
 
+            // by default the messages are sorted new -> old, reverse that
+            data.messages.reverse();
+
             const finalMessages = [];
+            let greetingToday = false;
             for (let obj of data.messages) {
+                const [time, count] = obj.ts.split('.');
+                obj.time = parseInt(time, 10) * 1000;
+                obj.dayIndex = parseInt(count, 10) - 1;
+                if (obj.dayIndex <= lastDayIndex) {
+                    ++dayID;
+                    greetingToday = false;
+                }
+                lastDayIndex = obj.dayIndex;
+                obj.dayID = dayID;
+
                 // Completely exclude text blocks
                 if (!obj.text || obj.text.includes('```')) continue;
 
+                // Remove tags (e.g. links, mentions) and things with no text
                 obj.text = obj.text.replace(TAG_REG, '').trim();
                 if (!obj.text) continue;
 
                 obj.words = obj.text.split(SPACE_REG);
-                const [time, count] = obj.ts.split('.')[0];
-                obj.time = parseInt(time) * 1000;
-                obj.datIndex = parseInt(count) - 1;
                 obj.isGreeting = GREETING_REG.test(obj.text);
+                if (obj.isGreeting) {
+                    obj.isFirstGreeting = !greetingToday;
+                    greetingToday = true;
+                }
 
                 finalMessages.push(obj);
             }
-            finalMessages.reverse(); // by default the messages are sorted new -> old, reverse that
+
             data.messages = finalMessages;
             result[key][path.basename(file, '.json')] = data;
         }
     }
+
     return result;
 };
 
