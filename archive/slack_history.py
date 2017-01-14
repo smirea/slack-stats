@@ -1,3 +1,6 @@
+
+# SOURCE: https://gist.github.com/Chandler/fb7a070f52883849de35
+
 # MIT License
 
 # Copyright (c) 2016 Chandler Abraham
@@ -42,7 +45,7 @@ import os
 # get your slack user token at the bottom of this page
 # https://api.slack.com/web
 #
-# dependencies: 
+# dependencies:
 #  pip install slacker # https://github.com/os/slacker
 #
 # usage examples
@@ -58,7 +61,7 @@ import os
 # slack.channel
 # slack.groups
 # slack.im
-# 
+#
 # channelId is the id of the channel/group/im you want to download history for.
 
 def getHistory(pageableObject, channelId, pageSize = 100):
@@ -88,11 +91,11 @@ def mkdir(directory):
 # fetch and write history for all public channels
 def getChannels(slack, dryRun):
   channels = slack.channels.list().body['channels']
-  
+
   print("\nfound channels: ")
   for channel in channels:
     print(channel['name'])
-  
+
   if not dryRun:
     parentDir = "channels"
     mkdir(parentDir)
@@ -109,11 +112,11 @@ def getChannels(slack, dryRun):
 # also known as IMs in the slack API.
 def getDirectMessages(slack, ownerId, userIdNameMap, dryRun):
   dms = slack.im.list().body['ims']
-  
+
   print("\nfound direct messages (1:1) with the following users:")
   for dm in dms:
     print(userIdNameMap.get(dm['user'], dm['user'] + " (name unknown)"))
-  
+
   if not dryRun:
     parentDir = "direct_messages"
     mkdir(parentDir)
@@ -131,11 +134,11 @@ def getDirectMessages(slack, ownerId, userIdNameMap, dryRun):
 # also known as groups in the slack API.
 def getPrivateChannels(slack, dryRun):
   groups = slack.groups.list().body['groups']
-  
+
   print("\nfound private channels:")
   for group in groups:
     print("{0}: ({1} members)".format(group['name'], len(group['members'])))
-  
+
   if not dryRun:
     parentDir = "private_channels"
     mkdir(parentDir)
